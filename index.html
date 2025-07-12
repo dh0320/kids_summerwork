@@ -32,10 +32,6 @@
             display: block;
             margin: 0 auto;
             cursor: pointer;
-            /* 背景画像用の設定 */
-            background-size: contain;
-            background-position: center;
-            background-repeat: no-repeat;
         }
 
         /* PC用のレイアウト */
@@ -146,7 +142,7 @@
     </style>
 </head>
 <body>
-    <h1 class="text-3xl md:text-4xl font-bold mb-2 text-blue-600 tracking-wider">ぷよぷよ v4</h1>
+    <h1 class="text-3xl md:text-4xl font-bold mb-2 text-blue-600 tracking-wider">ぷよぷよ v5</h1>
 
     <!-- モバイル用情報パネル (スマホでのみ表示) -->
     <div id="mobile-info">
@@ -218,9 +214,14 @@
         const finalScoreElement = document.getElementById('finalScore');
         const restartButton = document.getElementById('restartButton');
 
-        // --- 画像URL ---
+        // --- 画像URL & オブジェクト ---
         const charUrlNormal = 'https://storage.googleapis.com/dh_character_images/puyu_1.png';
         const charUrlReaction = 'https://storage.googleapis.com/dh_character_images/puyo2.png';
+        const charImageNormal = new Image();
+        const charImageReaction = new Image();
+        charImageNormal.src = charUrlNormal;
+        charImageReaction.src = charUrlReaction;
+        let currentCharacterImage = charImageNormal; // 現在表示するキャラクター画像
 
         // --- ゲームの定数と変数 ---
         const COLS = 6;
@@ -329,7 +330,7 @@
             chainAnimation.active = false;
             blinkingPuyos = [];
             
-            canvas.style.backgroundImage = `url('${charUrlNormal}')`;
+            currentCharacterImage = charImageNormal;
 
             currentPuyo = createPuyoPair();
             nextPuyo = createPuyoPair();
@@ -346,10 +347,19 @@
         function gameLoop() {
             if (isPaused) return;
             
-            // 背景画像が見えるように、半透明の白でクリア
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+            // 1. キャンバスを完全にクリア
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 2. 背景キャラクターを描画
+            if (currentCharacterImage.complete) {
+                ctx.drawImage(currentCharacterImage, 0, 0, canvas.width, canvas.height);
+            }
+
+            // 3. 半透明の白いレイヤーを重ねて、ぷよの視認性を確保
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+            // 4. グリッドやぷよを描画
             drawGrid();
             if (currentPuyo) {
                 drawDropPreview();
@@ -586,7 +596,7 @@
                 if (clearedPuyos > 0) {
                     hasChainedThisTurn = true;
                     if (chain === 0) {
-                        canvas.style.backgroundImage = `url('${charUrlReaction}')`;
+                        currentCharacterImage = charImageReaction;
                     }
                     chain++;
                     if (chain >= 2) showChainAnimation(chain);
@@ -601,7 +611,7 @@
 
             if (hasChainedThisTurn) {
                 setTimeout(() => {
-                    canvas.style.backgroundImage = `url('${charUrlNormal}')`;
+                    currentCharacterImage = charImageNormal;
                 }, 1000);
             }
 
@@ -730,7 +740,7 @@
             cancelAnimationFrame(gameLoopId);
             finalScoreElement.textContent = score;
             gameOverModal.style.display = 'flex';
-            canvas.style.backgroundImage = `url('${charUrlNormal}')`;
+            currentCharacterImage = charImageNormal;
         }
 
         // --- イベントリスナー ---
@@ -776,15 +786,24 @@
         restartButton.addEventListener('click', startGame);
 
         function initialDisplay() {
-            canvas.style.backgroundImage = `url('${charUrlNormal}')`;
-            
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            const draw = () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                if (charImageNormal.complete) {
+                    ctx.drawImage(charImageNormal, 0, 0, canvas.width, canvas.height);
+                }
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#1f2937';
+                ctx.textAlign = 'center';
+                ctx.font = `bold ${Math.max(18, BLOCK_SIZE / 2)}px 'Mochiy Pop One'`;
+                ctx.fillText('画面をタップしてスタート！', canvas.width / 2, canvas.height / 2);
+            };
 
-            ctx.fillStyle = '#1f2937';
-            ctx.textAlign = 'center';
-            ctx.font = `bold ${Math.max(18, BLOCK_SIZE / 2)}px 'Mochiy Pop One'`;
-            ctx.fillText('画面をタップしてスタート！', canvas.width / 2, canvas.height / 2);
+            if (charImageNormal.complete) {
+                draw();
+            } else {
+                charImageNormal.onload = draw;
+            }
         }
         
         // --- 起動処理 ---
