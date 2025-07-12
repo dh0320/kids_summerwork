@@ -12,27 +12,30 @@
         /* 基本スタイル */
         body {
             font-family: 'Mochiy+Pop+One', sans-serif;
-            touch-action: none; /* モバイルでのダブルタップズームやスクロールを無効化 */
+            touch-action: none;
             overscroll-behavior: none;
             background-color: #111827;
             color: white;
             display: flex;
             flex-direction: column;
-            justify-content: space-between; /* コンテンツを上下に配置 */
+            justify-content: flex-start;
             align-items: center;
             min-height: 100vh;
             padding: 1rem;
             box-sizing: border-box;
         }
 
-        canvas {
-            background-color: #1a202c;
+        canvas#gameCanvas {
             border: 4px solid #4a5568;
             border-radius: 8px;
             box-shadow: 0 10px 20px rgba(0,0,0,0.2), 0 6px 6px rgba(0,0,0,0.25);
-            display: block; /* 中央揃えのためにblock要素にする */
-            margin: 0 auto; /* 水平中央揃え */
-            cursor: pointer; /* クリック可能であることを示す */
+            display: block;
+            margin: 0 auto;
+            cursor: pointer;
+            /* 背景画像用の設定 */
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
         }
 
         /* PC用のレイアウト */
@@ -42,6 +45,7 @@
             align-items: flex-start;
             gap: 20px;
             width: 100%;
+            margin-top: 1rem;
         }
 
         .side-panel {
@@ -53,10 +57,14 @@
             width: 200px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.15);
         }
+        
+        /* モバイル用の情報パネル */
+        #mobile-info {
+            display: none; /* デフォルトは非表示 */
+        }
 
         /* モバイル用の操作ボタン */
         #mobile-controls {
-            display: none; /* デフォルトでは非表示 */
             position: fixed;
             bottom: 20px;
             left: 0;
@@ -99,37 +107,55 @@
         
         /* メディアクエリでスマホ表示を調整 */
         @media (max-width: 768px) {
-            body {
-                justify-content: flex-start; /* 上から配置 */
-            }
             .game-wrapper {
                 flex-direction: column;
                 align-items: center;
                 gap: 10px;
             }
-            .side-panel, .character-area {
-                display: none; /* スマホではサイドパネルとキャラ画像を非表示 */
+            .side-panel {
+                display: none; /* スマホではPC用サイドパネルを非表示 */
             }
-            #mobile-controls {
+            #mobile-info {
                 display: flex; /* スマホで表示 */
+                justify-content: space-around;
+                align-items: center;
+                width: 100%;
+                max-width: 400px;
+                margin-bottom: 1rem;
+                background-color: #2d3748;
+                padding: 8px;
+                border-radius: 8px;
+            }
+            #nextCanvas-mobile {
+                background-color: #1a202c;
+                border-radius: 4px;
             }
             #game-area {
                  margin-bottom: 120px; /* 操作ボタンとのスペースを確保 */
+            }
+            #mobile-controls {
+                display: flex; /* スマホで表示 */
             }
         }
     </style>
 </head>
 <body>
+    <h1 class="text-3xl md:text-4xl font-bold mb-2 text-yellow-300 tracking-wider">ぷよぷよ v3</h1>
 
-    <h1 class="text-3xl md:text-4xl font-bold mb-2 md:mb-4 text-yellow-300 tracking-wider">ぷよぷよ</h1>
+    <!-- モバイル用情報パネル (スマホでのみ表示) -->
+    <div id="mobile-info">
+        <div class="text-center">
+            <h2 class="text-lg">スコア</h2>
+            <p id="score-mobile" class="text-2xl font-bold text-green-400">0</p>
+        </div>
+        <div class="text-center">
+            <h2 class="text-lg">つぎのぷよ</h2>
+            <canvas id="nextCanvas-mobile" width="80" height="80"></canvas>
+        </div>
+    </div>
+
 
     <div class="game-wrapper">
-        <!-- キャラクター表示エリア (PCでのみ表示) -->
-        <div class="character-area w-60 h-[480px] flex-col items-center justify-center hidden md:flex">
-             <img id="char-normal" src="https://storage.googleapis.com/dh_character_images/puyu_1.png" class="max-w-full max-h-full object-contain" onerror="this.style.display='none'">
-             <img id="char-reaction" src="https://storage.googleapis.com/dh_character_images/puyo2.png" class="max-w-full max-h-full object-contain hidden" onerror="this.style.display='none'">
-        </div>
-
         <!-- ゲームエリア -->
         <div id="game-area" class="flex flex-col items-center">
             <canvas id="gameCanvas"></canvas>
@@ -175,15 +201,23 @@
         // --- DOM要素の取得 ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        // PC用
+        const scoreElement = document.getElementById('score');
         const nextCanvas = document.getElementById('nextCanvas');
         const nextCtx = nextCanvas.getContext('2d');
-        const scoreElement = document.getElementById('score');
+        // モバイル用
+        const scoreMobileElement = document.getElementById('score-mobile');
+        const nextCanvasMobile = document.getElementById('nextCanvas-mobile');
+        const nextCtxMobile = nextCanvasMobile.getContext('2d');
+        
         const startButton = document.getElementById('startButton');
         const gameOverModal = document.getElementById('gameOverModal');
         const finalScoreElement = document.getElementById('finalScore');
         const restartButton = document.getElementById('restartButton');
-        const charNormalImg = document.getElementById('char-normal');
-        const charReactionImg = document.getElementById('char-reaction');
+
+        // --- 画像URL ---
+        const charUrlNormal = 'https://storage.googleapis.com/dh_character_images/puyu_1.png';
+        const charUrlReaction = 'https://storage.googleapis.com/dh_character_images/puyo2.png';
 
         // --- ゲームの定数と変数 ---
         const COLS = 6;
@@ -191,7 +225,7 @@
         const HIDDEN_ROWS = 2;
         const TOTAL_ROWS = ROWS + HIDDEN_ROWS;
         const CLEAR_THRESHOLD = 4;
-        let BLOCK_SIZE = 40; // 初期値。後で動的に設定
+        let BLOCK_SIZE = 40; 
 
         const COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7'];
         
@@ -259,18 +293,24 @@
             const isMobile = window.innerWidth <= 768;
             const gameArea = document.getElementById('game-area');
             const availableWidth = gameArea.clientWidth;
-            const availableHeight = window.innerHeight - document.querySelector('h1').offsetHeight - (isMobile ? 140 : 40); // ヘッダーとボタンの高さを考慮
+            // モバイルの場合はモバイル情報パネルと操作ボタンの高さを考慮
+            const mobileTopOffset = document.getElementById('mobile-info').offsetHeight;
+            const mobileBottomOffset = 120;
+            const headerOffset = document.querySelector('h1').offsetHeight;
+            const verticalPadding = 32;
 
-            // 幅と高さから最適なブロックサイズを計算
+            const availableHeight = isMobile 
+                ? window.innerHeight - headerOffset - mobileTopOffset - mobileBottomOffset - verticalPadding
+                : window.innerHeight - headerOffset - verticalPadding;
+
             const sizeFromWidth = Math.floor(availableWidth / COLS);
             const sizeFromHeight = Math.floor(availableHeight / ROWS);
             
-            BLOCK_SIZE = Math.min(sizeFromWidth, sizeFromHeight, 60); // 最大サイズも設定
+            BLOCK_SIZE = Math.min(sizeFromWidth, sizeFromHeight, 60);
 
             canvas.width = COLS * BLOCK_SIZE;
             canvas.height = ROWS * BLOCK_SIZE;
             
-            // ゲームが実行中でなければ初期画面を再描画
             if(isPaused) {
                 initialDisplay();
             }
@@ -286,8 +326,7 @@
             chainAnimation.active = false;
             blinkingPuyos = [];
             
-            if(charNormalImg) charNormalImg.classList.remove('hidden');
-            if(charReactionImg) charReactionImg.classList.add('hidden');
+            canvas.style.backgroundImage = `url('${charUrlNormal}')`;
 
             currentPuyo = createPuyoPair();
             nextPuyo = createPuyoPair();
@@ -303,8 +342,11 @@
         // --- ゲームループと描画 ---
         function gameLoop() {
             if (isPaused) return;
+            
+            // 背景画像が見えるように、半透明の黒でクリア
+            ctx.fillStyle = 'rgba(26, 32, 44, 0.75)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
             drawGrid();
             if (currentPuyo) {
                 drawDropPreview();
@@ -433,15 +475,22 @@
         }
 
         function drawNextPuyo() {
+            // PC用
             nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+             // モバイル用
+            nextCtxMobile.clearRect(0, 0, nextCanvasMobile.width, nextCanvasMobile.height);
+
             if (nextPuyo) {
-                const size = 30;
-                const centerX = nextCanvas.width / 2;
-                const centerY = nextCanvas.height / 2;
                 const p1 = new Puyo(nextPuyo.puyo1.colorIndex, 0, 0);
                 const p2 = new Puyo(nextPuyo.puyo2.colorIndex, 0, 0);
-                p1.draw(nextCtx, size, centerX, centerY - size / 1.5);
-                p2.draw(nextCtx, size, centerX, centerY + size / 1.5);
+                
+                // PC用描画
+                p1.draw(nextCtx, 30, nextCanvas.width / 2, nextCanvas.height / 2 - 15);
+                p2.draw(nextCtx, 30, nextCanvas.width / 2, nextCanvas.height / 2 + 15);
+                
+                // モバイル用描画
+                p1.draw(nextCtxMobile, 20, nextCanvasMobile.width / 2, nextCanvasMobile.height / 2 - 10);
+                p2.draw(nextCtxMobile, 20, nextCanvasMobile.width / 2, nextCanvasMobile.height / 2 + 10);
             }
         }
 
@@ -486,7 +535,6 @@
                 return;
             }
 
-            // 壁ずらし処理
             if (newRotation === 1 && (newP1X >= COLS || (grid[newP1Y] && grid[newP1Y][newP1X] !== null))) {
                 if (isValidMove(puyo1, -1, 0) && isValidMove(puyo2, -1, 0)) {
                     movePuyo(-1, 0);
@@ -502,7 +550,6 @@
                 }
             }
 
-            // 上下入れ替え
             if (puyo1.x === puyo2.x) {
                 const tempY = puyo1.y;
                 puyo1.y = puyo2.y;
@@ -539,9 +586,8 @@
 
                 if (clearedPuyos > 0) {
                     hasChainedThisTurn = true;
-                    if (chain === 0 && charNormalImg) {
-                        charNormalImg.classList.add('hidden');
-                        charReactionImg.classList.remove('hidden');
+                    if (chain === 0) {
+                        canvas.style.backgroundImage = `url('${charUrlReaction}')`;
                     }
                     chain++;
                     if (chain >= 2) showChainAnimation(chain);
@@ -554,10 +600,9 @@
                 }
             }
 
-            if (hasChainedThisTurn && charNormalImg) {
+            if (hasChainedThisTurn) {
                 setTimeout(() => {
-                    charNormalImg.classList.remove('hidden');
-                    charReactionImg.classList.add('hidden');
+                    canvas.style.backgroundImage = `url('${charUrlNormal}')`;
                 }, 1000);
             }
 
@@ -677,6 +722,7 @@
 
         function updateScore() {
             scoreElement.textContent = score;
+            scoreMobileElement.textContent = score;
         }
 
         function gameOver() {
@@ -685,10 +731,7 @@
             cancelAnimationFrame(gameLoopId);
             finalScoreElement.textContent = score;
             gameOverModal.style.display = 'flex';
-            if(charNormalImg) {
-                charNormalImg.classList.remove('hidden');
-                charReactionImg.classList.add('hidden');
-            }
+            canvas.style.backgroundImage = `url('${charUrlNormal}')`;
         }
 
         // --- イベントリスナー ---
@@ -702,29 +745,27 @@
             }
         });
 
-        // モバイルボタンのイベントリスナー
         const leftBtn = document.getElementById('left-btn');
         const rightBtn = document.getElementById('right-btn');
         const downBtn = document.getElementById('down-btn');
         const rotateBtn = document.getElementById('rotate-btn');
 
-        // touchstartを使うことで、クリックの遅延をなくす
         leftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); movePuyo(-1, 0); });
         rightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); movePuyo(1, 0); });
         downBtn.addEventListener('touchstart', (e) => { e.preventDefault(); dropPuyo(); });
         rotateBtn.addEventListener('touchstart', (e) => { e.preventDefault(); rotatePuyo(); });
 
-        // Canvasをタップしてゲームを開始する
-        canvas.addEventListener('click', () => {
-            // ゲームが一時停止中（開始前）の場合のみ反応
+        function handleStart(e) {
+            e.preventDefault();
             if (isPaused) {
-                // ゲームオーバーモーダルが表示されている場合は、そちらのボタンを優先
                 if (gameOverModal.style.display === 'flex') {
                     return;
                 }
                 startGame();
             }
-        });
+        }
+        canvas.addEventListener('touchstart', handleStart);
+        canvas.addEventListener('click', handleStart);
 
         function startGame() {
             init();
@@ -736,9 +777,14 @@
         restartButton.addEventListener('click', startGame);
 
         function initialDisplay() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#1a202c';
+            // 背景を設定
+            canvas.style.backgroundImage = `url('${charUrlNormal}')`;
+            
+            // 描画エリアを半透明でクリア
+            ctx.fillStyle = 'rgba(26, 32, 44, 0.75)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // テキストを描画
             ctx.fillStyle = 'white';
             ctx.textAlign = 'center';
             ctx.font = `bold ${Math.max(18, BLOCK_SIZE / 2)}px 'Mochiy Pop One'`;
