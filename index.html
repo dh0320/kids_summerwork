@@ -32,6 +32,7 @@
             box-shadow: 0 10px 20px rgba(0,0,0,0.2), 0 6px 6px rgba(0,0,0,0.25);
             display: block; /* 中央揃えのためにblock要素にする */
             margin: 0 auto; /* 水平中央揃え */
+            cursor: pointer; /* クリック可能であることを示す */
         }
 
         /* PC用のレイアウト */
@@ -713,6 +714,17 @@
         downBtn.addEventListener('touchstart', (e) => { e.preventDefault(); dropPuyo(); });
         rotateBtn.addEventListener('touchstart', (e) => { e.preventDefault(); rotatePuyo(); });
 
+        // Canvasをタップしてゲームを開始する
+        canvas.addEventListener('click', () => {
+            // ゲームが一時停止中（開始前）の場合のみ反応
+            if (isPaused) {
+                // ゲームオーバーモーダルが表示されている場合は、そちらのボタンを優先
+                if (gameOverModal.style.display === 'flex') {
+                    return;
+                }
+                startGame();
+            }
+        });
 
         function startGame() {
             init();
@@ -730,8 +742,7 @@
             ctx.fillStyle = 'white';
             ctx.textAlign = 'center';
             ctx.font = `bold ${Math.max(18, BLOCK_SIZE / 2)}px 'Mochiy Pop One'`;
-            ctx.fillText('ボタンを押して', canvas.width / 2, canvas.height / 2 - BLOCK_SIZE / 1.5);
-            ctx.fillText('スタート！', canvas.width / 2, canvas.height / 2 + BLOCK_SIZE / 1.5);
+            ctx.fillText('画面をタップしてスタート！', canvas.width / 2, canvas.height / 2);
         }
         
         // --- 起動処理 ---
